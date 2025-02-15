@@ -1,0 +1,2 @@
+# Coil
+SparkPlug configuration manager
