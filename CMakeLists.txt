@@ -16,8 +16,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory("./extern/json")
 
 # Find the DBus library
-include(FindPkgConfig) 
-pkg_check_modules(DBUS REQUIRED dbus-1)
+find_package(sdbus-c++ REQUIRED)
 
 # Build the interface library
 add_subdirectory("./coil-lib")
