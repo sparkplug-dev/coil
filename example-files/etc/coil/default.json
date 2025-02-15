@@ -1,0 +1,31 @@
+{
+    "video": {
+        "dpi": {
+            "type": "number",
+            "default": 100,
+
+            "description": "The DPI of the screen"
+        },
+        "size": {
+            "type": "number",
+            "default": 12.2,
+
+            "description": "The size of the screen"
+        }
+    },
+
+    "general": {
+        "theme": {
+            "type": "string",
+            "default": "dark",
+
+            "description": "The system color theme"
+        },
+        "mirroring": {
+            "type": "boolean",
+            "default": true,
+
+            "description": "Allow Android screen mirroring"
+        }
+    }
+}
