@@ -15,8 +15,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory("./extern/json")
 
-# Find the DBus library
+# Find the D-Bus library
 find_package(sdbus-c++ REQUIRED)
+
+# Build spdlog
+add_subdirectory("./extern/spdlog")
 
 # Build the interface library
 add_subdirectory("./coil-lib")

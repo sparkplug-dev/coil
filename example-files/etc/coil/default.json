@@ -1,31 +1,40 @@
 {
     "video": {
         "dpi": {
-            "type": "number",
             "default": 100,
 
+            "displayed_name": "DPI",
             "description": "The DPI of the screen"
         },
         "size": {
-            "type": "number",
             "default": 12.2,
 
+            "displayed_name": "Size",
             "description": "The size of the screen"
         }
     },
 
     "general": {
         "theme": {
-            "type": "string",
             "default": "dark",
 
+            "displayed_name": "Theme",
             "description": "The system color theme"
         },
         "mirroring": {
-            "type": "boolean",
             "default": true,
 
+            "displayed_name": "Mirroring",
             "description": "Allow Android screen mirroring"
+        }
+    },
+
+    "network": {
+        "ip4": {
+            "default": [192, 168, 0, 10],
+
+            "displayed_name": "IPv4",
+            "description": "The static IPv4 address"
         }
     }
 }
