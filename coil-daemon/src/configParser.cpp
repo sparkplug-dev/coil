@@ -1,12 +1,14 @@
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <optional>
 #include <utility>
 
-#include "configParser.h"
 #include "nlohmann/json_fwd.hpp"
 #include "spdlog/spdlog.h"
+
+#include "configParser.h"
 
 namespace coil {
 
@@ -24,10 +26,105 @@ ConfigParser::ConfigParser(
     parseBaseConfig();
     parseUserConfig();
 
-    auto r = updatedConfigs();
-    for (auto& a: r) {
-        std::cout << a.getName() << std::endl;
+    // Store the last update time of the user config file if it exist
+    if (std::filesystem::exists(m_user_config_path)) {
+        m_last_write = std::filesystem::last_write_time(m_user_config_path);
     }
+
+    // Clear the updated config vector
+    m_updated_config.clear();
+    m_updated = false;
+}
+
+// Return the json object associated with the requested setting.
+// Settings are retrieved from the configuration files according
+// to they name and category
+//
+// Return nullopt if the requested setting is not found 
+// in the base template configuration
+std::optional<nlohmann::json> ConfigParser::getConfig(
+    const ConfigPath& config_path
+) {
+    // Check for config file updates and parse the file if necessary
+    checkConfigFileUpdate();
+
+    // Check if settings is in the user settings table
+    if (m_user_config.find(config_path) != m_user_config.end()) {
+        return m_user_config[config_path];
+    }
+
+    // Return the base template default value otherwise
+    if (m_base_config.find(config_path) != m_base_config.end()) {
+        return m_base_config[config_path].getDefault();
+    }
+
+    // Return nullopt if the setting was not found
+    return std::nullopt;
+}
+
+// Return the json object associated with the requested setting.
+// Settings are retrieved from the configuration files according
+// to they name and category.
+//
+// Return Ok if the operation was successful 
+// Return NotFound if the requested setting is not found 
+// in the base template configuration.
+// Return TypeMismatch if the type of the given json object doesn't match
+// the type of the settings in the base template configuration.
+ConfigParser::SetStatus ConfigParser::setConfig(
+    const ConfigPath& config_path,
+    nlohmann::json data
+) {
+    // Check for config file updates and parse the file if necessary
+    checkConfigFileUpdate();
+
+    // Check if the setting is in the base template table
+    if (m_base_config.find(config_path) == m_base_config.end()) {
+        return SetStatus::NotFound;
+    }
+
+    // Check if the provided data type matches the expected one
+    if (m_base_config[config_path].getType() != data.type()) {
+
+        return SetStatus::TypeMismatch;
+    }
+
+    if (m_user_config.find(config_path) == m_user_config.end()) {
+        m_user_config[config_path] = data;
+
+        try {
+            storeUserCofig();
+
+        // TODO: catch proper exception type
+        } catch (std::exception& e) {
+            // Revert any changes to the stored configuration
+            m_user_config.erase(config_path);
+            
+            return SetStatus::FileError;
+        }
+    } else {
+        // Store the old data to revert changes in case of write failure
+        nlohmann::json old_data = m_user_config[config_path];
+        
+        m_user_config[config_path] = data;
+
+        try {
+            storeUserCofig();
+
+        // TODO: catch proper exception type
+        } catch (std::exception& e) {
+            // Revert any changes to the stored configuration
+            m_user_config[config_path] = old_data;
+            
+            return SetStatus::FileError;
+        }
+    }
+
+    // Set was update to true and return Ok
+    m_updated = true;
+    m_updated_config.push_back(config_path);
+
+    return SetStatus::Ok;
 }
 
 // If the user configuration file was update since last calling this
@@ -38,6 +135,47 @@ std::vector<ConfigParser::ConfigPath> ConfigParser::updatedConfigs()
     m_updated_config.clear();
 
     return std::move(updated);
+}
+
+// Return true if the any configuration was updated since 
+// last calling this function
+bool ConfigParser::wasUpdated() 
+{
+    // Check if the config file was updated and parse the config
+    // file if necessary
+    checkConfigFileUpdate();
+
+    bool was_updated = m_updated;
+    m_updated = false;
+
+    return was_updated;
+}
+
+// Store the content of m_user_config to the user configuration file
+//
+// Raise an exception if the write fail
+void ConfigParser::storeUserCofig()
+{
+    // Generate the json object
+    nlohmann::json json_config;
+
+    for (const auto& setting : m_user_config) {
+        const ConfigPath& path = setting.first;
+
+        // Store the configuration data at the appropriate path
+        json_config[path.getCategory()][path.getName()] = setting.second;
+    }
+
+    // write prettified JSON to another file
+    // Use a dedicated scope to grantee writing to the file before 
+    // filesystem last_write_time is run
+    {
+        std::ofstream user_config_f(m_user_config_path);
+        user_config_f << std::setw(4) << json_config << std::endl;
+    }
+
+    // Update the last write time
+    m_last_write = std::filesystem::last_write_time(m_user_config_path);
 }
 
 // Parse the base configuration and populate m_base_config
@@ -140,6 +278,7 @@ void ConfigParser::parseUserConfig()
         std::ifstream user_config_path(m_user_config_path);
         user_config = nlohmann::json::parse(user_config_path);
         
+    // TODO: catch proper exception type
     } catch (std::exception& e) {
         spdlog::error(
             "Exception while opening user config file: {}",
@@ -192,14 +331,35 @@ void ConfigParser::parseUserConfig()
 
                 if (old_data != setting_data) {
                     m_updated_config.push_back(setting_path);
+                    m_updated = true;
                 }
             } else {
                 // If the setting is new push it to updated config
                 m_updated_config.push_back(setting_path);
+                m_updated = true;
             }
 
             // Update the user config table
             m_user_config[setting_path] = setting_data;
+        }
+    }
+}
+
+// Check if the user configuration file was updated since the last
+// read and parse it again if necessary
+void ConfigParser::checkConfigFileUpdate()
+{
+    // Only check for updates if the user config file exist
+    // if the file was deleted update will be ignored
+    if (std::filesystem::exists(m_user_config_path)) {
+        std::filesystem::file_time_type write_time = 
+            std::filesystem::last_write_time(m_user_config_path);
+
+        // If the write time don't match an updated occurred
+        // and parse the config file
+        if (m_last_write != write_time) {
+            parseUserConfig();
+            m_last_write = write_time;
         }
     }
 }

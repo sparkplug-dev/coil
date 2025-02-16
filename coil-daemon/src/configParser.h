@@ -1,16 +1,16 @@
 #ifndef COIL_CONFIG_PARSER_H
 #define COIL_CONFIG_PARSER_H
 
-#include "nlohmann/json_fwd.hpp"
 #include <filesystem>
-#include <map>
 #include <optional>
 #include <string>
+#include <map>
 
 #include <nlohmann/json.hpp>
 
 namespace coil {
 
+// Json configuration parser
 class ConfigParser {
 public:
     // Point to the location of a setting in the configuration files
@@ -39,6 +39,14 @@ public:
         std::string m_category;
         // The name of the setting
         std::string m_name;
+    };
+
+    // Report the status of a set operation
+    enum class SetStatus {
+        Ok = 0,
+        NotFound,
+        TypeMismatch,
+        FileError
     };
 
 private:
@@ -95,19 +103,25 @@ public:
     // Settings are retrieved from the configuration files according
     // to they name and category
     //
-    // Raise an exception if the requested setting is not found 
+    // nullopt if the requested setting is not found 
     // in the base template configuration
-    nlohmann::json getConfig(const ConfigPath& config_path);
+    std::optional<nlohmann::json> getConfig(const ConfigPath& config_path);
 
     // Return the json object associated with the requested setting.
     // Settings are retrieved from the configuration files according
     // to they name and category.
     //
-    // Raise an exception if the requested setting is not found 
+    // Return Ok if the operation was successful 
+    // Return NotFound if the requested setting is not found 
     // in the base template configuration.
-    // Raise an exception if the type of the given json object doesn't match
+    // Return TypeMismatch if the type of the given json object doesn't match
     // the type of the settings in the base template configuration.
-    void setConfig(const ConfigPath& config_path, nlohmann::json data);
+    // Return FileError if writing to the config file failed.
+    SetStatus setConfig(const ConfigPath& config_path, nlohmann::json data);
+
+    // Return true if the any configuration was updated since 
+    // last calling this function
+    bool wasUpdated();
 
     // If the user configuration file was update since last calling this
     // function, return a vector with all the config path that were updated 
@@ -125,11 +139,20 @@ private:
     // On first run all the setting are appended to m_updated_config.
     void parseUserConfig();
 
+    // Store the content of m_user_config to the user configuration file
+    //
+    // Raise an exception if the write fail
+    void storeUserCofig();
+
     // Return a constant reference to an entry of the base template 
     // configuration table if it exist.
     // Return nullopt if it doesn't 
     std::optional<std::reference_wrapper<const ConfigParser::ConfigBaseData>> 
     getBaseConfig(const ConfigPath& config_path);
+
+    // Check if the user configuration file was updated since the last
+    // read and parse it again if necessary
+    void checkConfigFileUpdate();
 
 private:
     // Store the base configuration data
@@ -149,6 +172,8 @@ private:
     // Store the config path that were updated since
     // last calling updatedConfigs
     std::vector<ConfigPath> m_updated_config;
+    // Store true if the configuration was updated since calling wasUpdated
+    bool m_updated;
 };
 
 } // namespace coil

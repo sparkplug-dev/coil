@@ -1,8 +1,8 @@
 {
-    "video": {
-        "dpi": 100
-    },
     "general": {
         "theme": "light"
+    },
+    "video": {
+        "dpi": 100
     }
 }
