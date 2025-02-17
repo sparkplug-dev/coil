@@ -50,17 +50,27 @@ public:
     };
 
 private:
+    // Represent the setting type
+    // This is necessary because nlohmann json make distinction 
+    // between unsigned and signed integer
+    enum class ConfigType {
+        None = 0,
+        Int,
+        Float,
+        String,
+        Array
+    };
+
     // Configuration base template data storage
     struct ConfigBaseData {
         ConfigBaseData() { };
         ConfigBaseData(
             nlohmann::json default_config,
-            nlohmann::json::value_t type,
             std::string_view displayed_name,
             std::string_view description
         ) :
             m_default(default_config),
-            m_type(type),
+            m_type(getConfigType(default_config)),
             m_displayed_name(displayed_name),
             m_description(description)
         { };
@@ -69,7 +79,7 @@ private:
         nlohmann::json getDefault() const { return m_default; }
 
         // Return the settings type
-        nlohmann::json::value_t getType() const { return m_type; }
+        ConfigType getType() const { return m_type; }
 
         // Return the settings displayed name
         std::string_view getDisplayedName() const { return m_displayed_name; }
@@ -81,7 +91,7 @@ private:
         nlohmann::json m_default;
 
         // The configuration json type
-        nlohmann::json::value_t m_type;
+        ConfigType m_type;
 
         // Displayed name
         std::string m_displayed_name;
@@ -153,6 +163,12 @@ private:
     // Check if the user configuration file was updated since the last
     // read and parse it again if necessary
     void checkConfigFileUpdate();
+
+    // Return the setting type
+    static ConfigType getConfigType(nlohmann::json data);
+
+    // Return a string representation of the type 
+    static std::string_view configTypeStr(ConfigType type);
 
 private:
     // Store the base configuration data

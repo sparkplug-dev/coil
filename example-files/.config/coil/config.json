@@ -1,8 +1,9 @@
 {
     "general": {
+        "mirroring": false,
         "theme": "light"
     },
     "video": {
-        "dpi": 100
+        "dpi": 109
     }
 }

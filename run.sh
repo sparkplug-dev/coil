@@ -40,6 +40,11 @@ EXE_PATH="${BUILD_DIR}/coil-daemon/coild"
 
 # Check if executable exist
 if [ -e ${EXE_PATH} ]; then
+
+    # Export path environmental variables
+    export COIL_BASE_CONFIG="./example-files/etc/coil/default.json"
+    export COIL_USER_CONFIG="./example-files/.config/coil/config.json"
+
     ./${EXE_PATH}
 else
     echo "Couldn't find executable file: ${EXE_PATH}"

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 
 #include "nlohmann/json_fwd.hpp"
@@ -58,6 +59,12 @@ std::optional<nlohmann::json> ConfigParser::getConfig(
         return m_base_config[config_path].getDefault();
     }
 
+    spdlog::warn(
+        "getConfig failed: setting not found ({}:{})",
+        config_path.getCategory(),
+        config_path.getName()
+    );
+
     // Return nullopt if the setting was not found
     return std::nullopt;
 }
@@ -80,11 +87,22 @@ ConfigParser::SetStatus ConfigParser::setConfig(
 
     // Check if the setting is in the base template table
     if (m_base_config.find(config_path) == m_base_config.end()) {
+        spdlog::warn(
+            "setConfig failed: setting not found ({}:{})",
+            config_path.getCategory(),
+            config_path.getName()
+        );
+
         return SetStatus::NotFound;
     }
 
     // Check if the provided data type matches the expected one
-    if (m_base_config[config_path].getType() != data.type()) {
+    if (m_base_config[config_path].getType() != getConfigType(data)) {
+        spdlog::warn(
+            "setConfig failed: type mismatch (expected: {}; got: {})",
+            configTypeStr(m_base_config[config_path].getType()),
+            configTypeStr(getConfigType(data))
+        );
 
         return SetStatus::TypeMismatch;
     }
@@ -99,7 +117,12 @@ ConfigParser::SetStatus ConfigParser::setConfig(
         } catch (std::exception& e) {
             // Revert any changes to the stored configuration
             m_user_config.erase(config_path);
-            
+           
+            spdlog::warn(
+                "setConfig failed: file error ({})",
+                e.what()
+            ); 
+
             return SetStatus::FileError;
         }
     } else {
@@ -116,6 +139,11 @@ ConfigParser::SetStatus ConfigParser::setConfig(
             // Revert any changes to the stored configuration
             m_user_config[config_path] = old_data;
             
+            spdlog::warn(
+                "setConfig failed: file error ({})",
+                e.what()
+            ); 
+
             return SetStatus::FileError;
         }
     }
@@ -170,8 +198,24 @@ void ConfigParser::storeUserCofig()
     // Use a dedicated scope to grantee writing to the file before 
     // filesystem last_write_time is run
     {
+        std::string json_str = json_config.dump(4);
+
+        // If the configuration file doesn't exist warn that 
+        // a new one will be created
+        if (!std::filesystem::exists(m_user_config_path)) {
+            spdlog::warn(
+                "Configuration file not found, creating one at: {}",
+                m_user_config_path.c_str()
+            );
+        }
+        
+        // Enable exceptions for write failure
         std::ofstream user_config_f(m_user_config_path);
-        user_config_f << std::setw(4) << json_config << std::endl;
+        user_config_f.exceptions(
+            std::ofstream::failbit | std::ofstream::badbit 
+        );
+
+        user_config_f << json_str << std::endl;
     }
 
     // Update the last write time
@@ -181,9 +225,28 @@ void ConfigParser::storeUserCofig()
 // Parse the base configuration and populate m_base_config
 void ConfigParser::parseBaseConfig()
 {
-    // Parse the base template json
-    std::ifstream base_file(m_base_path);
-    nlohmann::json base_config = nlohmann::json::parse(base_file);
+    nlohmann::json base_config;
+
+    try {
+        // If the file doesn't exist throw an exception
+        if (std::filesystem::exists(m_base_path)) {
+            // Parse the base template json
+            std::ifstream file(m_base_path);
+            base_config = nlohmann::json::parse(file);
+        } else {
+            throw std::runtime_error(
+                "Base config file not found"
+            );
+        }
+
+    } catch (std::exception& e) {
+        spdlog::error(
+            "Exception while opening base config file: {}",
+            e.what()
+        );
+
+        throw e;
+    }
 
     // Iterate over all categories
     for (auto& category: base_config.items()) {
@@ -227,7 +290,7 @@ void ConfigParser::parseBaseConfig()
             // Check the type of each field
             if (default_data.is_object()) {
                 spdlog::warn(
-                    "Ignoring \"{}: ({}:{})\"; default field can't be an onject",
+                    "Ignoring \"{}: ({}:{})\"; default can't be an onject",
                     m_base_path.c_str(), category_name, setting_name
                 );
 
@@ -256,7 +319,6 @@ void ConfigParser::parseBaseConfig()
             // Create the base storage object
             ConfigBaseData setting_data(
                 default_data,
-                default_data.type(),
                 displayed_name.get<std::string>(),
                 description.get<std::string>()
             );
@@ -274,9 +336,16 @@ void ConfigParser::parseUserConfig()
     nlohmann::json user_config;
 
     try {
-        // Parse the base template json
-        std::ifstream user_config_path(m_user_config_path);
-        user_config = nlohmann::json::parse(user_config_path);
+        // If the file doesn't exist throw an exception
+        if (std::filesystem::exists(m_user_config_path)) {
+            // Parse the user config json
+            std::ifstream file(m_user_config_path);
+            user_config = nlohmann::json::parse(file);
+        } else {
+            throw std::runtime_error(
+                "User config file not found"
+            );
+        }
         
     // TODO: catch proper exception type
     } catch (std::exception& e) {
@@ -313,11 +382,13 @@ void ConfigParser::parseUserConfig()
             const ConfigBaseData& base_data = m_base_config[setting_path]; 
 
             // Check if the type of the setting is correct
-            if (base_data.getType() != setting_data.type()) {
-
+            if (base_data.getType() != getConfigType(setting_data)) {
                 spdlog::warn(
-                   "Ignoring \"{}: ({}:{})\"; wrong setting type",
-                    m_user_config_path.c_str(), category_name, setting_name
+                   "Ignoring \"{}: ({}:{})\"; wrong type (expected: {})",
+                    m_user_config_path.c_str(),
+                    category_name,
+                    setting_name,
+                    configTypeStr(getConfigType(setting_data))
                 );
 
                 continue;
@@ -376,6 +447,45 @@ ConfigParser::getBaseConfig(
     }
 
     return std::nullopt;
+}
+
+// Return the setting type
+ConfigParser::ConfigType ConfigParser::getConfigType(
+    nlohmann::json data
+) {
+    switch (data.type()) {
+        case nlohmann::json::value_t::number_integer:
+            return ConfigType::Int;
+        case nlohmann::json::value_t::number_unsigned:
+            return ConfigType::Int;
+        case nlohmann::json::value_t::number_float:
+            return ConfigType::Float;
+        case nlohmann::json::value_t::string:
+            return ConfigType::String;
+        case nlohmann::json::value_t::array:
+            return ConfigType::Array;
+
+        default:
+            return ConfigType::None;
+    }
+}
+
+// Return a string representation of the type 
+std::string_view ConfigParser::configTypeStr(ConfigType type)
+{
+    switch (type) {
+        case ConfigType::Int:
+            return "Int";
+        case ConfigType::Float:
+            return "Float";
+        case ConfigType::String:
+            return "String";
+        case ConfigType::Array:
+            return "Array";
+
+        default:
+            return "Unknow type";
+    }
 }
 
 } // namespace coil

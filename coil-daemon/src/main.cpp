@@ -1,33 +1,40 @@
 #include <iostream>
+#include <cstdlib>
 
 #include "configParser.h"
 
+// Define the configuration environmental variables
+constexpr const char* c_base_config_env = "COIL_BASE_CONFIG";
+constexpr const char* c_user_config_env = "COIL_USER_CONFIG";
+
 int main() {
-    coil::ConfigParser parser(
-        "./example-files/etc/coil/default.json",
-        "./example-files/.config/coil/config.json"
-    );
+    // Get the configuration paths from the environment
+    const char* base_path = getenv(c_base_config_env);
+    const char* user_path = getenv(c_user_config_env);
 
-    std::cout << parser.getConfig({"video", "dpi"}).value() << std::endl;
+    coil::ConfigParser parser(base_path, user_path);
 
-    nlohmann::json j;
-    uint i = 101;
-    j = i;
+    int i = parser.getConfig({"video", "dpi"}).value().get<int>();
+    std::cout << i << std::endl;
 
-    std::cout << (int)j.type() << std::endl;
+    parser.setConfig({"video", "dpi"}, (int)(i + 1));
 
-    coil::ConfigParser::SetStatus status = 
-        parser.setConfig({"video", "dpi"}, j);
+    i = parser.getConfig({"video", "dpi"}).value().get<int>();
+    std::cout << i << std::endl;
+    
+    bool b = parser.getConfig({"general", "mirroring"}).value().get<bool>();
+    std::cout << b << std::endl;
 
-    if (status == coil::ConfigParser::SetStatus::Ok) 
-        std::cout << "Ok" << std::endl;
-    if (status == coil::ConfigParser::SetStatus::NotFound) 
-        std::cout << "NotFound" << std::endl;
-    if (status == coil::ConfigParser::SetStatus::TypeMismatch) 
-        std::cout << "TypeMismatch" << std::endl;
-    if (status == coil::ConfigParser::SetStatus::FileError) 
-        std::cout << "FileError" << std::endl;
-        
+    parser.setConfig({"general", "mirroring"}, !b);
+
+    b = parser.getConfig({"general", "mirroring"}).value().get<bool>();
+    std::cout << b << std::endl;
+
+    if (parser.wasUpdated()) {
+        for (auto& i : parser.updatedConfigs()) {
+            std::cout << i.getCategory() << ":" << i.getName() << std::endl;
+        }
+    }
 
     return 0;
 }
