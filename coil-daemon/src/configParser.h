@@ -55,10 +55,15 @@ private:
     // between unsigned and signed integer
     enum class ConfigType {
         None = 0,
+
         Int,
+        Bool,
         Float,
         String,
-        Array
+
+        ArrayInt,
+        ArrayFloat,
+        ArrayString
     };
 
     // Configuration base template data storage
@@ -166,6 +171,11 @@ private:
 
     // Return the setting type
     static ConfigType getConfigType(nlohmann::json data);
+
+    // Return the array type of the given json element
+    // Return None if the array is not homogeneous 
+    // Return None if the given object is not an array 
+    static ConfigType getArrayType(nlohmann::json data);
 
     // Return a string representation of the type 
     static std::string_view configTypeStr(ConfigType type);

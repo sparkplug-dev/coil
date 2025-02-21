@@ -325,6 +325,13 @@ void ConfigParser::parseBaseConfig()
 
             // Create the base template table entry
             m_base_config[setting_path] = setting_data;
+
+            spdlog::debug(
+                "Found config \"{}:{}\" - {}",
+                category_name,
+                setting_name,
+                configTypeStr(getConfigType(default_data))
+            );
         }
     }
 }
@@ -449,6 +456,49 @@ ConfigParser::getBaseConfig(
     return std::nullopt;
 }
 
+// Return the array type of the given json element
+// Return None if the array is not homogeneous 
+// Return None if the given object is not an array 
+ConfigParser::ConfigType ConfigParser::getArrayType(nlohmann::json data)
+{
+    // Check if the given object is an array
+    if (data.type() != nlohmann::json::value_t::array) 
+        return ConfigType::None;
+
+    ConfigType type = ConfigType::None;
+
+    // Check the type of every element
+    for (auto& e : data) {
+        ConfigType e_type = getConfigType(e);
+
+        // If this isn't the first cycle in the loop and the previous 
+        // type doesn't match the new element type leave the loop and 
+        // return None
+        if (type != ConfigType::None && type != e_type) {
+            type = ConfigType::None;
+            break;
+        }
+
+        // Store the last element type
+        type = e_type;
+    }
+
+    // Convert the element type to array type
+    switch (type) {
+        case ConfigType::Int:
+            return ConfigType::ArrayInt;
+        case ConfigType::Float:
+            return ConfigType::ArrayFloat;
+        case ConfigType::String:
+            return ConfigType::ArrayString;
+        
+        default:
+            return ConfigType::None;
+    }
+
+    return type;
+}
+
 // Return the setting type
 ConfigParser::ConfigType ConfigParser::getConfigType(
     nlohmann::json data
@@ -458,12 +508,14 @@ ConfigParser::ConfigType ConfigParser::getConfigType(
             return ConfigType::Int;
         case nlohmann::json::value_t::number_unsigned:
             return ConfigType::Int;
+        case nlohmann::json::value_t::boolean:
+            return ConfigType::Bool;
         case nlohmann::json::value_t::number_float:
             return ConfigType::Float;
         case nlohmann::json::value_t::string:
             return ConfigType::String;
         case nlohmann::json::value_t::array:
-            return ConfigType::Array;
+            return getArrayType(data);
 
         default:
             return ConfigType::None;
@@ -476,12 +528,18 @@ std::string_view ConfigParser::configTypeStr(ConfigType type)
     switch (type) {
         case ConfigType::Int:
             return "Int";
+        case ConfigType::Bool:
+            return "Bool";
         case ConfigType::Float:
             return "Float";
         case ConfigType::String:
             return "String";
-        case ConfigType::Array:
-            return "Array";
+        case ConfigType::ArrayInt:
+            return "ArrayInt";
+        case ConfigType::ArrayFloat:
+            return "ArrayFloat";
+        case ConfigType::ArrayString:
+            return "ArrayString";
 
         default:
             return "Unknow type";
