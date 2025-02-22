@@ -44,6 +44,7 @@ if [ -e ${EXE_PATH} ]; then
     # Export path environmental variables
     export COIL_BASE_CONFIG="./example-files/etc/coil/default.json"
     export COIL_USER_CONFIG="./example-files/.config/coil/config.json"
+    export COIL_DEBUG=1
 
     ./${EXE_PATH}
 else

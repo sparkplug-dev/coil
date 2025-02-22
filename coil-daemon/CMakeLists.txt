@@ -3,6 +3,7 @@ set(DAEMON_NAME "coild")
 add_executable(${DAEMON_NAME}
     "src/main.cpp"
     "src/configParser.cpp"
+    "src/dbusServer.cpp"
 )
 
 target_include_directories(${DAEMON_NAME} 

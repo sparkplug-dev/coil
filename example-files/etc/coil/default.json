@@ -11,6 +11,12 @@
 
             "displayed_name": "Size",
             "description": "The size of the screen"
+        },
+        "test": {
+            "default": ["test", "list"],
+
+            "displayed_name": "Test",
+            "description": "Test strings list setting"
         }
     },
 

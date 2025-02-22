@@ -14,17 +14,31 @@ namespace coil {
 // Json configuration parser
 class ConfigParser {
 public:
+    // Represent the setting type
+    enum class ConfigType {
+        None = 0,
+
+        Int,
+        Bool,
+        Float,
+        String,
+
+        ArrayInt,
+        ArrayFloat,
+        ArrayString
+    };
+
     // Point to the location of a setting in the configuration files
     struct ConfigPath {
-        ConfigPath() : m_category(), m_name() { };
+        ConfigPath() : m_category(), m_name() { }
         ConfigPath(
             std::string_view category, std::string_view name
-        ) : m_category(category), m_name(name) { };
+        ) : m_category(category), m_name(name) { }
 
         // Return the setting category
-        std::string_view getCategory() const { return m_category; };
+        std::string_view getCategory() const { return m_category; }
         // Return the setting name
-        std::string_view getName() const { return m_name; };
+        std::string_view getName() const { return m_name; }
 
         // Ordering operator for usage in map
         bool operator <(const ConfigPath& rhs) const
@@ -42,21 +56,27 @@ public:
         std::string m_name;
     };
 
-private:
-    // Represent the setting type
-    enum class ConfigType {
-        None = 0,
+    // Store a config path and associated information.
+    // Used by the D-Bus server for creating property
+    struct ConfigMetadata {
+        ConfigMetadata() { }
+        ConfigMetadata(
+            ConfigPath path, ConfigType type
+        ) : m_path(path), m_type(type) { }
 
-        Int,
-        Bool,
-        Float,
-        String,
+        // Get the configuration path
+        const ConfigPath& getPath() const { return m_path; } 
+        // Get the configuration type
+        ConfigType getType() const { return m_type; }
 
-        ArrayInt,
-        ArrayFloat,
-        ArrayString
+    private:
+        // Configuration path
+        ConfigPath m_path;
+        // Configuration type
+        ConfigType m_type;
     };
 
+private:
     // Report the status of a set operation
     enum class SetStatus {
         Ok = 0,
@@ -133,6 +153,13 @@ public:
     // Raise an exception if an error occurred during file writing. 
     template <typename Type>
     void set(const ConfigPath& config_path, const Type& data);
+
+    // Return a list of all the category in the configuration structure
+    std::vector<std::string> getCategories() const;
+
+    // Return a list of meta data for the settings in the give category
+    // Return a empty list if the category doesn't exist
+    const std::vector<ConfigMetadata>& getMetadatas(std::string_view category);
 
     // Return true if the any configuration was updated since 
     // last calling this function
@@ -212,6 +239,11 @@ private:
     std::map<ConfigPath, ConfigBaseData> m_base_config;
     // Store the user configuration data
     std::map<ConfigPath, nlohmann::json> m_user_config;
+
+    // Store a representation of the full configuration structure
+    // Key is the category name, Item is a list of config metadata
+    // for the category
+    std::map<std::string, std::vector<ConfigMetadata>> m_config_structure;
 
     // Path to configuration base template and default configuration
     std::filesystem::path m_base_path;

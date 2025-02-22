@@ -4,6 +4,7 @@
 #include <iostream>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "nlohmann/json_fwd.hpp"
@@ -35,6 +36,26 @@ ConfigParser::ConfigParser(
     // Clear the updated config vector
     m_updated_config.clear();
     m_updated = false;
+}
+
+// Return a list of all the category in the configuration structure
+std::vector<std::string> ConfigParser::getCategories() const 
+{
+    std::vector<std::string> categories;
+
+    for (const auto& category : m_config_structure) {
+        categories.push_back(category.first);
+    }
+
+    return std::move(categories);
+}
+
+// Return a list of meta data for the settings in the give category
+const std::vector<ConfigParser::ConfigMetadata>& ConfigParser::getMetadatas(
+    std::string_view category
+) {
+    // TODO: Fix this cast to string
+    return m_config_structure[std::string(category)];
 }
 
 // Return the json object associated with the requested setting.
@@ -238,6 +259,8 @@ void ConfigParser::parseBaseConfig()
 {
     nlohmann::json base_config;
 
+    spdlog::debug("Parsing base config file ({})", m_base_path.c_str());
+
     try {
         // If the file doesn't exist throw an exception
         if (std::filesystem::exists(m_base_path)) {
@@ -337,6 +360,18 @@ void ConfigParser::parseBaseConfig()
             // Create the base template table entry
             m_base_config[setting_path] = setting_data;
 
+            // Add the setting to the configuration structure map
+            // TODO: Fix this cast to string
+            std::vector<ConfigMetadata>& metadatas = m_config_structure[
+                std::string(setting_path.getCategory())
+            ];
+
+            metadatas.emplace_back(
+                setting_path, 
+                getConfigType(default_data)
+            );
+
+            // Log the successful setting creation
             spdlog::debug(
                 "Found config \"{}:{}\" - {}",
                 category_name,
@@ -352,6 +387,8 @@ void ConfigParser::parseBaseConfig()
 void ConfigParser::parseUserConfig()
 {
     nlohmann::json user_config;
+
+    spdlog::debug("Parsing user config file ({})", m_user_config_path.c_str());
 
     try {
         // If the file doesn't exist throw an exception
@@ -430,6 +467,12 @@ void ConfigParser::parseUserConfig()
 
             // Update the user config table
             m_user_config[setting_path] = setting_data;
+
+            spdlog::debug(
+                "Found user config for \"{}:{}\"",
+                setting_path.getCategory(),
+                setting_path.getName()
+            );
         }
     }
 }
