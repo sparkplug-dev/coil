@@ -42,18 +42,8 @@ public:
         std::string m_name;
     };
 
-    // Report the status of a set operation
-    enum class SetStatus {
-        Ok = 0,
-        NotFound,
-        TypeMismatch,
-        FileError
-    };
-
 private:
     // Represent the setting type
-    // This is necessary because nlohmann json make distinction 
-    // between unsigned and signed integer
     enum class ConfigType {
         None = 0,
 
@@ -65,6 +55,14 @@ private:
         ArrayInt,
         ArrayFloat,
         ArrayString
+    };
+
+    // Report the status of a set operation
+    enum class SetStatus {
+        Ok = 0,
+        NotFound,
+        TypeMismatch,
+        FileError
     };
 
     // Configuration base template data storage
@@ -163,7 +161,10 @@ private:
     // Return TypeMismatch if the type of the given json object doesn't match
     // the type of the settings in the base template configuration.
     // Return FileError if writing to the config file failed.
-    SetStatus setConfigJson(const ConfigPath& config_path, nlohmann::json data);
+    SetStatus setConfigJson(
+        const ConfigPath& config_path,
+        nlohmann::json data
+    );
 
     // Parse the base configuration and populate m_base_config
     // Raise exception if the base config file is not found
