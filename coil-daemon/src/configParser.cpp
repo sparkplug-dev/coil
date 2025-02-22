@@ -43,7 +43,7 @@ ConfigParser::ConfigParser(
 //
 // Return nullopt if the requested setting is not found 
 // in the base template configuration
-std::optional<nlohmann::json> ConfigParser::getConfig(
+std::optional<nlohmann::json> ConfigParser::getConfigJson(
     const ConfigPath& config_path
 ) {
     // Check for config file updates and parse the file if necessary
@@ -78,12 +78,18 @@ std::optional<nlohmann::json> ConfigParser::getConfig(
 // in the base template configuration.
 // Return TypeMismatch if the type of the given json object doesn't match
 // the type of the settings in the base template configuration.
-ConfigParser::SetStatus ConfigParser::setConfig(
+ConfigParser::SetStatus ConfigParser::setConfigJson(
     const ConfigPath& config_path,
     nlohmann::json data
 ) {
     // Check for config file updates and parse the file if necessary
     checkConfigFileUpdate();
+
+    spdlog::debug(
+        "Updating setting: \"{}:{}\"",
+        config_path.getCategory(),
+        config_path.getName()
+    );
 
     // Check if the setting is in the base template table
     if (m_base_config.find(config_path) == m_base_config.end()) {
@@ -186,6 +192,11 @@ void ConfigParser::storeUserCofig()
 {
     // Generate the json object
     nlohmann::json json_config;
+
+    spdlog::debug(
+        "Writing on user config file ({})",
+        m_user_config_path.c_str()
+    );
 
     for (const auto& setting : m_user_config) {
         const ConfigPath& path = setting.first;
