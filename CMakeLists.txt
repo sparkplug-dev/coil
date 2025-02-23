@@ -15,7 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(GIT_SUBMODULE "Update submodules during build" ON)
 
 if(GIT_SUBMODULE)
-    find_package(Git REQUIRED)
+    find_package(Git QUIET)
     message(STATUS "Submodule update")
 
     execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive

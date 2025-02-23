@@ -222,7 +222,7 @@ private:
 
     // Return the config type associated with the given c++ type
     template <typename Type>
-    constexpr ConfigType getConfigType();
+    static constexpr ConfigType getConfigType();
 
     // Return the setting type
     static ConfigType getConfigType(nlohmann::json data);
