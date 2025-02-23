@@ -15,3 +15,11 @@ target_link_libraries(${DAEMON_NAME}
     PRIVATE SDBusCpp::sdbus-c++
     PRIVATE spdlog
 ) 
+
+# Installation command
+install(TARGETS ${DAEMON_NAME} DESTINATION "usr/bin")
+install(
+    FILES "${CMAKE_SOURCE_DIR}/example-files/etc/coil/default.json" 
+    DESTINATION "etc/coil"
+)
+
