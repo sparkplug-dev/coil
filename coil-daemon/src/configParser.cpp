@@ -490,6 +490,11 @@ void ConfigParser::checkConfigFileUpdate()
         // If the write time don't match an updated occurred
         // and parse the config file
         if (m_last_write != write_time) {
+            spdlog::debug(
+                "User config file change detected ({})",
+                m_user_config_path.c_str()
+            );
+
             parseUserConfig();
             m_last_write = write_time;
         }

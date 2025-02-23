@@ -57,6 +57,12 @@ private:
         const ConfigParser::ConfigMetadata& config_metadata
     );
 
+    // Send property change signal if changes occurred in the config parser  
+    void sendChangeSignals();
+
+    // Property change 
+    void signalChangeLoop();
+
 private:
     // D-Bus connection 
     std::unique_ptr<sdbus::IConnection> m_connection;

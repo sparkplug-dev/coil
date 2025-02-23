@@ -1,6 +1,12 @@
+#include <poll.h>
+#include <sdbus-c++/Types.h>
+#include <sys/eventfd.h>
+
+#include <sdbus-c++/IObject.h>
+#include <thread>
+
 #include "dbusServer.h"
 #include "spdlog/spdlog.h"
-#include <sdbus-c++/IObject.h>
 
 //#include <chrono>
 //#include <thread>
@@ -42,15 +48,39 @@ DbusServer::DbusServer(
 // Run the D-Bus service main loop 
 void DbusServer::run()
 {
-//    while (true) {
-//
-//
-//        // Sleep before the next loop
-//        std::this_thread::sleep_for(
-//            std::chrono::milliseconds(c_loop_sleep_millis)
-//        );
-//    }
-    m_connection->enterEventLoop();
+    while (true) {
+        // Poll the file descriptor 
+        sdbus::IConnection::PollData poll_data =
+            m_connection->getEventLoopPollData();
+
+        struct pollfd fds[] = {
+            {poll_data.fd, poll_data.events, 0},
+            {poll_data.eventFd, POLLIN, 0}
+        };
+        constexpr auto fds_count = sizeof(fds)/sizeof(fds[0]);
+
+        int timeout = poll_data.getPollTimeout();
+
+        // Perform the poll operation
+        int r = poll(fds, fds_count, timeout);
+
+        // A signal was caught during poll try again
+        if (r < 0 && errno == EINTR) {
+
+        }
+        
+        // Check if the poll was successful 
+        if (r < 0) {
+            spdlog::warn("Poll error in D-Bus main loop: {}", errno);
+            continue;
+        }
+
+        // Process the pending event on the bus
+        m_connection->processPendingEvent();
+
+        // Send the property change signals if necessary
+        sendChangeSignals();
+    }
 }
 
 // Create a object representing the given category and populate it 
@@ -146,6 +176,49 @@ void DbusServer::createConfigProperty(
             spdlog::error(
                 "Unknown config type in DbusServer::createConfigProperty"
             );
+    }
+}
+
+// Send property change signal if changes occurred in the config parser  
+void DbusServer::sendChangeSignals()
+{
+    // The interface name will remain unchanged during the entire execution
+    // of the program, declaring it as static to avoid recalculating it
+    // every time the function is called
+    static sdbus::InterfaceName interface_name{
+        std::string(c_dbus_interface_name) +
+        c_dbus_interface_version
+    };
+
+    if (m_config_parser.wasUpdated()) {
+        // Send a signal for each update config
+        for (auto& config : m_config_parser.updatedConfigs()) {
+            // Get the configuration object
+            std::string category(config.getCategory());
+            std::string name(config.getName());
+            auto& object = m_category_objects[category];
+
+            // Emit the signal
+            sdbus::PropertyName property_name {name};
+
+            object->emitPropertiesChangedSignal(
+                interface_name, 
+                { property_name }
+            );
+        }
+    }
+}
+
+// Property change 
+void DbusServer::signalChangeLoop()
+{
+    while (true) {
+        sendChangeSignals();
+
+        // Sleep before the next iteration
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(c_loop_sleep_millis)
+        );    
     }
 }
 
