@@ -1,19 +1,22 @@
+#include <chrono>
+#include <thread>
+
 #include <poll.h>
-#include <sdbus-c++/Types.h>
+#include <signal.h>
 #include <sys/eventfd.h>
 
+#include <sdbus-c++/Types.h>
 #include <sdbus-c++/IObject.h>
-#include <thread>
 
 #include "dbusServer.h"
 #include "spdlog/spdlog.h"
 
-//#include <chrono>
-//#include <thread>
-
 namespace coil {
 
 constexpr int c_loop_sleep_millis = 10;
+
+// Store true if the server and the main thread need to run
+static std::atomic<bool> g_running = true;
 
 // Create the dbus server and parse the config files at the
 // given paths
@@ -48,7 +51,19 @@ DbusServer::DbusServer(
 // Run the D-Bus service main loop 
 void DbusServer::run()
 {
-    while (true) {
+    // Setup the handle for system signal
+    signal(SIGINT, [] (int) {
+        g_running = false;
+    }); 
+    signal(SIGTERM, [] (int) {
+        g_running = false;
+    }); 
+
+    // Launch the signal loop
+    std::thread signal_thread(&DbusServer::signalChangeLoop, this); 
+
+    // Launch D-Bus service loop
+    while (g_running) {
         // Poll the file descriptor 
         sdbus::IConnection::PollData poll_data =
             m_connection->getEventLoopPollData();
@@ -66,7 +81,7 @@ void DbusServer::run()
 
         // A signal was caught during poll try again
         if (r < 0 && errno == EINTR) {
-
+            continue;
         }
         
         // Check if the poll was successful 
@@ -81,6 +96,10 @@ void DbusServer::run()
         // Send the property change signals if necessary
         sendChangeSignals();
     }
+
+    spdlog::debug("Leaving D-Bus loop");
+
+    signal_thread.join();
 }
 
 // Create a object representing the given category and populate it 
@@ -212,7 +231,7 @@ void DbusServer::sendChangeSignals()
 // Property change 
 void DbusServer::signalChangeLoop()
 {
-    while (true) {
+    while (g_running) {
         sendChangeSignals();
 
         // Sleep before the next iteration
@@ -220,6 +239,8 @@ void DbusServer::signalChangeLoop()
             std::chrono::milliseconds(c_loop_sleep_millis)
         );    
     }
+
+    spdlog::debug("Leaving signal loop");
 }
 
 } // namespace coil

@@ -186,6 +186,8 @@ ConfigParser::SetStatus ConfigParser::setConfigJson(
 // function, return a vector with all the config path that were updated 
 std::vector<ConfigParser::ConfigPath> ConfigParser::updatedConfigs()
 {
+    std::lock_guard<std::mutex> guard(m_mutex);
+
     std::vector<ConfigPath> updated = m_updated_config;
     m_updated_config.clear();
 
@@ -196,6 +198,8 @@ std::vector<ConfigParser::ConfigPath> ConfigParser::updatedConfigs()
 // last calling this function
 bool ConfigParser::wasUpdated() 
 {
+    std::lock_guard<std::mutex> guard(m_mutex);
+
     // Check if the config file was updated and parse the config
     // file if necessary
     checkConfigFileUpdate();

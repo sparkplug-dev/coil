@@ -2,6 +2,7 @@
 #define COIL_CONFIG_PARSER_H
 
 #include <filesystem>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <map>
@@ -259,6 +260,9 @@ private:
     std::vector<ConfigPath> m_updated_config;
     // Store true if the configuration was updated since calling wasUpdated
     bool m_updated;
+
+    // Mutex for thread safety
+    std::mutex m_mutex;
 };
 
 // Return the config type associated with the given c++ type
@@ -331,6 +335,8 @@ constexpr ConfigParser::ConfigType ConfigParser::getConfigType()
 template <typename Type>
 Type ConfigParser::get(const ConfigPath& config_path)
 {
+    std::lock_guard<std::mutex> guard(m_mutex);
+
     // Check for type at compile time
     if constexpr (getConfigType<Type>() == ConfigType::None) 
         static_assert(false, "Configuration type not supported");
@@ -364,6 +370,8 @@ Type ConfigParser::get(const ConfigPath& config_path)
 template <typename Type>
 void ConfigParser::set(const ConfigPath& config_path, const Type& data)
 {
+    std::lock_guard<std::mutex> guard(m_mutex);
+
     // Check for type at compile time
     if constexpr (getConfigType<Type>() == ConfigType::None) 
         static_assert(false, "Configuration type not supported");
