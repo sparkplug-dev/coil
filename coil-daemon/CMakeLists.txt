@@ -17,9 +17,9 @@ target_link_libraries(${DAEMON_NAME}
 ) 
 
 # Installation command
-install(TARGETS ${DAEMON_NAME} DESTINATION "usr/bin")
+install(TARGETS ${DAEMON_NAME})
 install(
-    FILES "${CMAKE_SOURCE_DIR}/example-files/etc/coil/default.json" 
-    DESTINATION "etc/coil"
+    DIRECTORY "${CMAKE_SOURCE_DIR}/example-files/etc/coil" 
+    DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}
 )
 
