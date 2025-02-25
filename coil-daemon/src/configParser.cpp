@@ -265,25 +265,27 @@ void ConfigParser::parseBaseConfig()
 
     spdlog::debug("Parsing base config file ({})", m_base_path.c_str());
 
-    try {
-        // If the file doesn't exist throw an exception
-        if (std::filesystem::exists(m_base_path)) {
+    // If the file doesn't exist throw an exception
+    if (std::filesystem::exists(m_base_path)) {
+        try {
             // Parse the base template json
             std::ifstream file(m_base_path);
             base_config = nlohmann::json::parse(file);
-        } else {
+        } catch (std::exception& e) {
+            spdlog::error(
+                "Exception while parsing base config file json: {}",
+                e.what()
+            );
+
             throw std::runtime_error(
-                "Base config file not found"
+                "Base config file parsing error"
             );
         }
 
-    } catch (std::exception& e) {
-        spdlog::error(
-            "Exception while opening base config file: {}",
-            e.what()
+    } else {
+        throw std::runtime_error(
+            "Base config file not found"
         );
-
-        throw e;
     }
 
     // Iterate over all categories
